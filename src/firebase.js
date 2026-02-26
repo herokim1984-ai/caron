@@ -7,8 +7,6 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
-  query,
-  orderBy,
   serverTimestamp
 } from 'firebase/firestore';
 
@@ -30,13 +28,20 @@ const carsCol = collection(db, 'cars');
 const inquiriesCol = collection(db, 'inquiries');
 
 // ── Cars ──
-export function subscribeCars(callback) {
-  const q = query(carsCol, orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snap) => {
+export function subscribeCars(callback, onError) {
+  // No orderBy to avoid index requirements - sort client-side
+  return onSnapshot(carsCol, (snap) => {
     const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    cars.sort((a, b) => {
+      const ta = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+      const tb = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+      return tb - ta;
+    });
     callback(cars);
   }, (err) => {
     console.error('Cars subscription error:', err);
+    callback([]);
+    if (onError) onError(err);
   });
 }
 
@@ -59,13 +64,19 @@ export async function deleteCar(id) {
 }
 
 // ── Inquiries ──
-export function subscribeInquiries(callback) {
-  const q = query(inquiriesCol, orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snap) => {
+export function subscribeInquiries(callback, onError) {
+  return onSnapshot(inquiriesCol, (snap) => {
     const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    items.sort((a, b) => {
+      const ta = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+      const tb = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+      return tb - ta;
+    });
     callback(items);
   }, (err) => {
     console.error('Inquiries subscription error:', err);
+    callback([]);
+    if (onError) onError(err);
   });
 }
 

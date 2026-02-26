@@ -740,9 +740,19 @@ export default function App(){
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
-    const unsubCars=subscribeCars((data)=>{setCars(data);setLoading(false)});
-    const unsubInq=subscribeInquiries(setInquiries);
-    return()=>{unsubCars();unsubInq()};
+    let timeout;
+    // Failsafe: end loading after 5 seconds no matter what
+    timeout = setTimeout(()=>setLoading(false), 5000);
+
+    const unsubCars=subscribeCars(
+      (data)=>{setCars(data);setLoading(false);clearTimeout(timeout)},
+      (err)=>{console.error(err);setLoading(false);clearTimeout(timeout)}
+    );
+    const unsubInq=subscribeInquiries(
+      setInquiries,
+      (err)=>console.error(err)
+    );
+    return()=>{unsubCars();unsubInq();clearTimeout(timeout)};
   },[]);
 
   const handleInquiry=async(data)=>{
