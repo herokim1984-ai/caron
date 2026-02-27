@@ -234,20 +234,29 @@ function ImgUploader({images,setImages}){
 function Header({page,setPage,isAdmin,setIsAdmin}){
   const [show,setShow]=useState(false);
   const [pw,setPw]=useState('');
-  const login=()=>{if(pw===ADMIN_PW){setIsAdmin(true);setShow(false);setPage('admin');setPw('')}else alert('비밀번호가 일치하지 않습니다.')};
+  const login=()=>{
+    if(pw===ADMIN_PW){
+      setIsAdmin(true);setShow(false);setPage('admin');setPw('');
+      try{sessionStorage.setItem('caron_admin','1')}catch(e){}
+    }else alert('비밀번호가 일치하지 않습니다.');
+  };
+  const logout=()=>{
+    setIsAdmin(false);setPage('home');
+    try{sessionStorage.removeItem('caron_admin')}catch(e){}
+  };
 
   return(<>
     <header style={{position:'sticky',top:0,zIndex:100,background:'rgba(13,13,13,.92)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',borderBottom:`1px solid ${BD}`}}>
       <div style={{maxWidth:1280,margin:'0 auto',padding:'0 16px',display:'flex',alignItems:'center',justifyContent:'space-between',height:56}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}} onClick={()=>{setPage('home');setIsAdmin(false)}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}} onClick={()=>setPage('home')}>
           <span style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:800,color:G,letterSpacing:2}}>CARON</span>
           <span className="hide-m" style={{fontSize:9,color:MT,letterSpacing:1}}>신차 장기렌트 & 리스</span>
         </div>
         <nav style={{display:'flex',alignItems:'center',gap:2}}>
-          <button className="btn bg bs" onClick={()=>{setPage('home');setIsAdmin(false)}}>{ic.home}<span className="hide-m">승계차량</span></button>
+          <button className="btn bg bs" onClick={()=>setPage('home')}>{ic.home}<span className="hide-m">승계차량</span></button>
           {isAdmin?<>
             <button className="btn bg bs" onClick={()=>setPage('admin')}>{ic.settings}<span className="hide-m">관리</span></button>
-            <button className="btn bg bs" onClick={()=>{setIsAdmin(false);setPage('home')}} style={{fontSize:12}}>로그아웃</button>
+            <button className="btn bg bs" onClick={logout} style={{fontSize:12}}>로그아웃</button>
           </>:<button className="btn bg bs" onClick={()=>setShow(true)}>{ic.lock}<span className="hide-m">관리자</span></button>}
         </nav>
       </div>
@@ -794,7 +803,9 @@ export default function App(){
   const [cars,setCars]=useState([]);
   const [inquiries,setInquiries]=useState([]);
   const [page,setPage]=useState('home');
-  const [isAdmin,setIsAdmin]=useState(false);
+  const [isAdmin,setIsAdmin]=useState(()=>{
+    try{return sessionStorage.getItem('caron_admin')==='1'}catch(e){return false}
+  });
   const [selected,setSelected]=useState(null);
   const [loading,setLoading]=useState(true);
 
