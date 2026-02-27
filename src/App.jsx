@@ -281,7 +281,6 @@ function CarCard({car,onClick}){
         </div>
         <div style={{display:'flex',gap:8,marginTop:8,paddingTop:8,borderTop:`1px solid ${BD}`,flexWrap:'wrap'}}>
           <span style={{fontSize:10,color:MT,display:'flex',alignItems:'center',gap:2}}>{ic.pin}{car.region}</span>
-          <span style={{fontSize:10,color:MT,display:'flex',alignItems:'center',gap:2}}>{ic.eye}{fmt(car.views||0)}</span>
           <span style={{fontSize:10,color:MT,display:'flex',alignItems:'center',gap:2}}>{ic.fuel}{car.fuelType}</span>
         </div>
       </div>
@@ -434,7 +433,7 @@ function CarForm({car,onSave,onCancel}){
     deposit:0,acquisitionCost:'',supportAmount:0,annualMileage:20000,
     currentMileage:'',fuelType:'가솔린',color:'',seating:'5인승',
     region:'',capitalCompany:'',contractEndDate:'',transmission:'자동',
-    images:[],description:'',options:[],status:'active',views:0,
+    images:[],description:'',options:[],status:'active',
     isPremium:false,plateNumber:'',managerName:'',managerPhone:''
   };
   const d = useRef({...init}); // mutable data ref
@@ -481,7 +480,6 @@ function CarForm({car,onSave,onCancel}){
         annualMileage:Number(f.annualMileage)||0,
         currentMileage:Number(f.currentMileage)||0,
         year:Number(f.year)||2025,
-        views:Number(f.views)||0,
       });
     }catch(err){alert('저장 중 오류: '+err.message)}
     setSaving(false);
@@ -522,7 +520,6 @@ function CarForm({car,onSave,onCancel}){
         <F l="약정 주행거리 (km/년)"><input type="number" {...t('annualMileage')}/></F>
         <F l="현재 주행거리 (km)"><input type="number" {...t('currentMileage')}/></F>
         <F l="지역"><input {...t('region')} placeholder="서울 강남구"/></F>
-        <F l="조회수 (수동)"><input type="number" {...t('views')}/></F>
       </div>
 
       <div style={{marginTop:14,padding:14,background:DB,borderRadius:8,border:`1px solid ${BD}`}}>
@@ -637,7 +634,7 @@ function Admin({cars,inquiries}){
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:800}}>
               <thead><tr style={{borderBottom:`1px solid ${BD}`,background:'rgba(245,208,0,.03)'}}>
-                {['','유형','브랜드/모델','차량번호','월납입금','잔여','지원금','담당자','조회','관리'].map(h=><th key={h} style={{padding:'9px 10px',textAlign:'left',fontWeight:600,color:MT,whiteSpace:'nowrap',fontSize:10}}>{h}</th>)}
+                {['','유형','브랜드/모델','차량번호','월납입금','잔여','지원금','담당자','관리'].map(h=><th key={h} style={{padding:'9px 10px',textAlign:'left',fontWeight:600,color:MT,whiteSpace:'nowrap',fontSize:10}}>{h}</th>)}
               </tr></thead>
               <tbody>{cars.map(car=>(
                 <tr key={car.id} style={{borderBottom:`1px solid ${BD}`}}>
@@ -649,7 +646,6 @@ function Admin({cars,inquiries}){
                   <td style={{padding:'8px 10px',color:MT}}>{car.remainingMonths}개월</td>
                   <td style={{padding:'8px 10px',color:car.supportAmount>0?G:MT}}>{car.supportAmount>0?fmtW(car.supportAmount)+'원':'-'}</td>
                   <td style={{padding:'8px 10px',color:MT,fontSize:10,whiteSpace:'nowrap'}}>{car.managerName||'-'}<br/>{car.managerPhone||''}</td>
-                  <td style={{padding:'8px 10px',color:MT}}>{fmt(car.views||0)}</td>
                   <td style={{padding:'8px 10px',whiteSpace:'nowrap'}}>
                     <div style={{display:'flex',gap:2}}>
                       <button className="btn bg" style={{padding:'3px 5px',minWidth:0}} title={car.status==='active'?'승계완료 처리':'되돌리기'} onClick={()=>toggleDone(car)}>{ic.checkCircle}</button>
@@ -658,7 +654,7 @@ function Admin({cars,inquiries}){
                     </div>
                   </td>
                 </tr>
-              ))}{cars.length===0&&<tr><td colSpan={10} style={{padding:30,textAlign:'center',color:MT}}>등록된 차량이 없습니다</td></tr>}</tbody>
+              ))}{cars.length===0&&<tr><td colSpan={9} style={{padding:30,textAlign:'center',color:MT}}>등록된 차량이 없습니다</td></tr>}</tbody>
             </table>
           </div>
         </div>
@@ -730,7 +726,6 @@ function Home({cars,onSelect}){
   const sorted=useMemo(()=>[...filtered].sort((a,b)=>{
     if(sort==='price-asc')return(a.monthlyPayment||0)-(b.monthlyPayment||0);
     if(sort==='price-desc')return(b.monthlyPayment||0)-(a.monthlyPayment||0);
-    if(sort==='views')return(b.views||0)-(a.views||0);
     return 0; // Firestore already sorts by createdAt desc
   }),[filtered,sort]);
 
@@ -764,7 +759,7 @@ function Home({cars,onSelect}){
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:10}}>
             <div><label style={{fontSize:10,color:MT,marginBottom:2,display:'block'}}>브랜드</label><select value={brand} onChange={e=>setBrand(e.target.value)}>{BRANDS.map(b=><option key={b}>{b}</option>)}</select></div>
             <div><label style={{fontSize:10,color:MT,marginBottom:2,display:'block'}}>연료</label><select value={fuel} onChange={e=>setFuel(e.target.value)}>{FUELS.map(f=><option key={f}>{f}</option>)}</select></div>
-            <div><label style={{fontSize:10,color:MT,marginBottom:2,display:'block'}}>정렬</label><select value={sort} onChange={e=>setSort(e.target.value)}><option value="latest">최신순</option><option value="price-asc">가격↑</option><option value="price-desc">가격↓</option><option value="views">인기순</option></select></div>
+            <div><label style={{fontSize:10,color:MT,marginBottom:2,display:'block'}}>정렬</label><select value={sort} onChange={e=>setSort(e.target.value)}><option value="latest">최신순</option><option value="price-asc">가격↑</option><option value="price-desc">가격↓</option></select></div>
           </div>
         </div>}
       </div>
@@ -790,7 +785,7 @@ function Home({cars,onSelect}){
             <span style={{fontSize:11,color:MT}}>{gen.length}대</span>
           </div>
           <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:'auto',padding:'4px 30px 4px 10px',fontSize:11,borderRadius:6}}>
-            <option value="latest">최신순</option><option value="price-asc">가격↑</option><option value="price-desc">가격↓</option><option value="views">인기순</option>
+            <option value="latest">최신순</option><option value="price-asc">가격↑</option><option value="price-desc">가격↓</option>
           </select>
         </div>
         {gen.length===0&&prem.length===0?
