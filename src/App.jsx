@@ -89,28 +89,84 @@ textarea{resize:vertical;min-height:80px}
 }
 `;
 
-// ── Controlled Input (cursor fix) ──
-function CI({value,onChange,...p}){
-  const r=useRef(null),c=useRef(null);
-  const h=e=>{c.current=e.target.selectionStart;onChange(e)};
-  useEffect(()=>{if(r.current&&c.current!==null){try{r.current.setSelectionRange(c.current,c.current)}catch(e){}c.current=null}},[value]);
-  return <input ref={r} value={value??''} onChange={h} {...p}/>
+// ── Stable Input (no cursor jump) ──
+// Uses defaultValue + onBlur to avoid re-render cursor issues
+// key prop forces remount only when form resets
+function CI({value,onChange,onKeyDown,...p}){
+  const ref=useRef(null);
+  // Sync ref on mount / external value change when not focused
+  useEffect(()=>{
+    if(ref.current && ref.current !== document.activeElement){
+      ref.current.value = value ?? '';
+    }
+  },[value]);
+  return <input
+    ref={ref}
+    defaultValue={value??''}
+    onChange={e=>{
+      if(onChange) onChange(e);
+    }}
+    onKeyDown={onKeyDown}
+    {...p}
+  />
 }
 function CT({value,onChange,...p}){
-  const r=useRef(null),c=useRef(null);
-  const h=e=>{c.current=e.target.selectionStart;onChange(e)};
-  useEffect(()=>{if(r.current&&c.current!==null){try{r.current.setSelectionRange(c.current,c.current)}catch(e){}c.current=null}},[value]);
-  return <textarea ref={r} value={value??''} onChange={h} {...p}/>
+  const ref=useRef(null);
+  useEffect(()=>{
+    if(ref.current && ref.current !== document.activeElement){
+      ref.current.value = value ?? '';
+    }
+  },[value]);
+  return <textarea
+    ref={ref}
+    defaultValue={value??''}
+    onChange={e=>{
+      if(onChange) onChange(e);
+    }}
+    {...p}
+  />
+}
+
+// ── Lightbox (fullscreen image viewer) ──
+function Lightbox({images,startIdx,onClose}){
+  const [i,setI]=useState(startIdx||0);
+  const [zoom,setZoom]=useState(false);
+  useEffect(()=>{
+    const handler=e=>{
+      if(e.key==='Escape')onClose();
+      if(e.key==='ArrowLeft')setI(p=>(p-1+images.length)%images.length);
+      if(e.key==='ArrowRight')setI(p=>(p+1)%images.length);
+    };
+    window.addEventListener('keydown',handler);
+    return()=>window.removeEventListener('keydown',handler);
+  },[images.length]);
+
+  return(
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:999,background:'rgba(0,0,0,.95)',display:'flex',alignItems:'center',justifyContent:'center',padding:10,cursor:'zoom-out'}}>
+      <button onClick={e=>{e.stopPropagation();onClose()}} style={{position:'absolute',top:16,right:16,background:'rgba(255,255,255,.15)',border:'none',color:'#fff',width:40,height:40,borderRadius:'50%',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,zIndex:1001}}>✕</button>
+      <div style={{position:'absolute',top:16,left:'50%',transform:'translateX(-50%)',color:'#fff',fontSize:13,background:'rgba(0,0,0,.5)',padding:'4px 12px',borderRadius:12,zIndex:1001}}>{i+1} / {images.length}</div>
+      <img
+        src={images[i]}
+        alt=""
+        onClick={e=>{e.stopPropagation();setZoom(!zoom)}}
+        style={{maxWidth:zoom?'none':'90vw',maxHeight:zoom?'none':'90vh',objectFit:'contain',cursor:zoom?'zoom-out':'zoom-in',transition:'transform .2s',transform:zoom?'scale(1.5)':'scale(1)'}}
+      />
+      {images.length>1&&<>
+        <button onClick={e=>{e.stopPropagation();setI(p=>(p-1+images.length)%images.length)}} style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',background:'rgba(255,255,255,.15)',border:'none',color:'#fff',width:44,height:44,borderRadius:'50%',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1001}}>{ic.chevL}</button>
+        <button onClick={e=>{e.stopPropagation();setI(p=>(p+1)%images.length)}} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'rgba(255,255,255,.15)',border:'none',color:'#fff',width:44,height:44,borderRadius:'50%',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1001}}>{ic.chevR}</button>
+      </>}
+    </div>
+  );
 }
 
 // ── Image Gallery ──
-function Gallery({images,h=200}){
+function Gallery({images,h=200,onImageClick}){
   const [i,setI]=useState(0);
   const imgs=images||[];
   if(!imgs.length) return <div style={{height:h,background:'linear-gradient(135deg,#1e1e1e,#2a2a2a)',display:'flex',alignItems:'center',justifyContent:'center'}}><div style={{textAlign:'center',color:'#444'}}>{ic.img}<p style={{fontSize:11,marginTop:4}}>사진 없음</p></div></div>;
   return(
     <div style={{position:'relative',height:h,background:'#111',overflow:'hidden'}}>
-      <img src={imgs[i]} alt="" style={{width:'100%',height:'100%',objectFit:'cover',transition:'opacity .3s'}}/>
+      <img src={imgs[i]} alt="" onClick={e=>{e.stopPropagation();if(onImageClick)onImageClick(i)}} style={{width:'100%',height:'100%',objectFit:'cover',transition:'opacity .3s',cursor:onImageClick?'zoom-in':'default'}}/>
       {imgs.length>1&&<>
         <button onClick={e=>{e.stopPropagation();setI(p=>(p-1+imgs.length)%imgs.length)}} style={{position:'absolute',left:6,top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,.5)',border:'none',color:'#fff',width:30,height:30,borderRadius:'50%',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>{ic.chevL}</button>
         <button onClick={e=>{e.stopPropagation();setI(p=>(p+1)%imgs.length)}} style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,.5)',border:'none',color:'#fff',width:30,height:30,borderRadius:'50%',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>{ic.chevR}</button>
@@ -258,6 +314,7 @@ function Detail({car,onClose,onInquiry}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({name:'',phone:'',message:''});
   const [sent,setSent]=useState(false);
+  const [lightbox,setLightbox]=useState(null); // index or null
   const done=car.status==='completed';
 
   const submit=()=>{
@@ -287,11 +344,13 @@ function Detail({car,onClose,onInquiry}){
         </div>
 
         <div style={{position:'relative'}}>
-          <Gallery images={car.images||[]} h={280}/>
+          <Gallery images={car.images||[]} h={280} onImageClick={(idx)=>setLightbox(idx)}/>
           {done&&<div style={{position:'absolute',inset:0,background:'rgba(0,0,0,.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:5,pointerEvents:'none'}}>
             <div style={{background:'rgba(229,57,53,.92)',color:'#fff',padding:'12px 32px',borderRadius:10,fontWeight:900,fontSize:20,letterSpacing:2,transform:'rotate(-5deg)',border:'3px solid rgba(255,255,255,.3)'}}>승계완료</div>
           </div>}
         </div>
+
+        {lightbox!==null&&(car.images||[]).length>0&&<Lightbox images={car.images} startIdx={lightbox} onClose={()=>setLightbox(null)}/>}
 
         <div style={{padding:'18px 18px 24px'}}>
           <span style={{fontSize:12,color:MT}}>{car.brand} · {car.year}년식{car.plateNumber?` · ${car.plateNumber}`:''}</span>
