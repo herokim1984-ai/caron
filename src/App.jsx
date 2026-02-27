@@ -89,42 +89,13 @@ textarea{resize:vertical;min-height:80px}
 }
 `;
 
-// ── Stable Input (no cursor jump) ──
-// Uses defaultValue + onBlur to avoid re-render cursor issues
-// key prop forces remount only when form resets
-function CI({value,onChange,onKeyDown,...p}){
-  const ref=useRef(null);
-  // Sync ref on mount / external value change when not focused
-  useEffect(()=>{
-    if(ref.current && ref.current !== document.activeElement){
-      ref.current.value = value ?? '';
-    }
-  },[value]);
-  return <input
-    ref={ref}
-    defaultValue={value??''}
-    onChange={e=>{
-      if(onChange) onChange(e);
-    }}
-    onKeyDown={onKeyDown}
-    {...p}
-  />
+// ── Pure Uncontrolled Input (zero re-render interference) ──
+// Never pass value prop. Only uses defaultValue + imperative read.
+function CI({defaultValue,onChange,onKeyDown,...p}){
+  return <input defaultValue={defaultValue??''} onChange={onChange} onKeyDown={onKeyDown} {...p}/>
 }
-function CT({value,onChange,...p}){
-  const ref=useRef(null);
-  useEffect(()=>{
-    if(ref.current && ref.current !== document.activeElement){
-      ref.current.value = value ?? '';
-    }
-  },[value]);
-  return <textarea
-    ref={ref}
-    defaultValue={value??''}
-    onChange={e=>{
-      if(onChange) onChange(e);
-    }}
-    {...p}
-  />
+function CT({defaultValue,onChange,...p}){
+  return <textarea defaultValue={defaultValue??''} onChange={onChange} {...p}/>
 }
 
 // ── Lightbox (fullscreen image viewer) ──
@@ -267,7 +238,7 @@ function Header({page,setPage,isAdmin,setIsAdmin}){
           <h3 style={{fontSize:16,fontWeight:700}}>관리자 로그인</h3>
           <button style={{background:'none',border:'none',color:MT,cursor:'pointer'}} onClick={()=>setShow(false)}>{ic.x}</button>
         </div>
-        <CI type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="비밀번호" onKeyDown={e=>{if(e.key==='Enter')login()}}/>
+        <input type="password" defaultValue="" onChange={e=>setPw(e.target.value)} placeholder="비밀번호" onKeyDown={e=>{if(e.key==='Enter')login()}}/>
         <button className="btn bp" style={{width:'100%',marginTop:12}} onClick={login}>로그인</button>
       </div>
     </div>}
@@ -321,16 +292,24 @@ function CarCard({car,onClick}){
 // ── Detail Modal ──
 function Detail({car,onClose,onInquiry}){
   const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({name:'',phone:'',message:''});
+  const inqRef=useRef({name:'',phone:'',message:''});
   const [sent,setSent]=useState(false);
-  const [lightbox,setLightbox]=useState(null); // index or null
+  const [lightbox,setLightbox]=useState(null);
   const done=car.status==='completed';
+  const nameRef=useRef(null),phoneRef=useRef(null),msgRef=useRef(null);
 
   const submit=()=>{
-    if(!form.name||!form.phone){alert('이름과 연락처를 입력해주세요.');return}
-    onInquiry({...form,carId:car.id,carName:`${car.brand} ${car.model}`,managerPhone:car.managerPhone||'',status:'new'});
+    const f=inqRef.current;
+    if(!f.name||!f.phone){alert('이름과 연락처를 입력해주세요.');return}
+    onInquiry({...f,carId:car.id,carName:`${car.brand} ${car.model}`,managerPhone:car.managerPhone||'',status:'new'});
     setSent(true);
-    setTimeout(()=>{setSent(false);setShowForm(false);setForm({name:'',phone:'',message:''})},2500);
+    setTimeout(()=>{
+      setSent(false);setShowForm(false);
+      inqRef.current={name:'',phone:'',message:''};
+      if(nameRef.current)nameRef.current.value='';
+      if(phoneRef.current)phoneRef.current.value='';
+      if(msgRef.current)msgRef.current.value='';
+    },2500);
   };
 
   const Row=({l,v,hl})=>(
@@ -430,9 +409,9 @@ function Detail({car,onClose,onInquiry}){
             :<>
               <h4 style={{fontSize:13,fontWeight:700,marginBottom:12}}>승계 문의</h4>
               <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                <CI placeholder="이름 *" value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}/>
-                <CI placeholder="연락처 * (010-1234-5678)" value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))}/>
-                <CT placeholder="문의사항 (선택)" value={form.message} onChange={e=>setForm(p=>({...p,message:e.target.value}))} rows={3}/>
+                <input ref={nameRef} placeholder="이름 *" defaultValue="" onChange={e=>{inqRef.current.name=e.target.value}}/>
+                <input ref={phoneRef} placeholder="연락처 * (010-1234-5678)" defaultValue="" onChange={e=>{inqRef.current.phone=e.target.value}}/>
+                <textarea ref={msgRef} placeholder="문의사항 (선택)" defaultValue="" onChange={e=>{inqRef.current.message=e.target.value}} rows={3}/>
                 <div style={{display:'flex',gap:6}}>
                   <button className="btn bg" style={{flex:1}} onClick={()=>setShowForm(false)}>취소</button>
                   <button className="btn bp" style={{flex:1}} onClick={submit}>문의 접수</button>
@@ -448,7 +427,8 @@ function Detail({car,onClose,onInquiry}){
 
 // ── Admin Car Form ──
 function CarForm({car,onSave,onCancel}){
-  const [f,sF]=useState(()=>car?{...car,images:car.images||[]}:{
+  // useRef for all text fields - typing NEVER triggers re-render
+  const init = car ? {...car, images:car.images||[]} : {
     brand:'',model:'',year:2025,trim:'',contractType:'렌트',
     monthlyPayment:'',remainingMonths:'',totalContractMonths:60,
     deposit:0,acquisitionCost:'',supportAmount:0,annualMileage:20000,
@@ -456,17 +436,42 @@ function CarForm({car,onSave,onCancel}){
     region:'',capitalCompany:'',contractEndDate:'',transmission:'자동',
     images:[],description:'',options:[],status:'active',views:0,
     isPremium:false,plateNumber:'',managerName:'',managerPhone:''
-  });
-  const [opt,setOpt]=useState('');
-  const [saving,setSaving]=useState(false);
-  const s=(k,v)=>sF(p=>({...p,[k]:v}));
+  };
+  const d = useRef({...init}); // mutable data ref
+  // Only these need re-render: images, options, isPremium, status, selects, saving
+  const [images, setImages] = useState(init.images||[]);
+  const [options, setOptions] = useState(init.options||[]);
+  const [isPrem, setIsPrem] = useState(!!init.isPremium);
+  const [status, setStatus] = useState(init.status||'active');
+  const [brand, setBrand] = useState(init.brand||'');
+  const [year, setYear] = useState(init.year||2025);
+  const [cType, setCType] = useState(init.contractType||'렌트');
+  const [fuelT, setFuelT] = useState(init.fuelType||'가솔린');
+  const [seat, setSeat] = useState(init.seating||'5인승');
+  const [trans, setTrans] = useState(init.transmission||'자동');
+  const [saving, setSaving] = useState(false);
+  const optRef = useRef(null);
+
+  // Sync ref when select/checkbox changes
+  useEffect(()=>{d.current.images=images},[images]);
+  useEffect(()=>{d.current.options=options},[options]);
+  useEffect(()=>{d.current.isPremium=isPrem},[isPrem]);
+  useEffect(()=>{d.current.status=status},[status]);
+  useEffect(()=>{d.current.brand=brand},[brand]);
+  useEffect(()=>{d.current.year=year},[year]);
+  useEffect(()=>{d.current.contractType=cType},[cType]);
+  useEffect(()=>{d.current.fuelType=fuelT},[fuelT]);
+  useEffect(()=>{d.current.seating=seat},[seat]);
+  useEffect(()=>{d.current.transmission=trans},[trans]);
 
   const save=async()=>{
+    const f=d.current;
     if(!f.brand||!f.model||!f.monthlyPayment){alert('브랜드, 모델명, 월 납입금은 필수입니다.');return}
     setSaving(true);
     try{
       await onSave({
         ...f,
+        id: car?.id,
         monthlyPayment:Number(f.monthlyPayment)||0,
         remainingMonths:Number(f.remainingMonths)||0,
         totalContractMonths:Number(f.totalContractMonths)||0,
@@ -482,69 +487,77 @@ function CarForm({car,onSave,onCancel}){
     setSaving(false);
   };
 
+  const addOpt=()=>{
+    const v=optRef.current?.value?.trim();
+    if(v){setOptions(p=>{const n=[...p,v];d.current.options=n;return n});optRef.current.value=''}
+  };
+
+  // Simple text field handler - just writes to ref, no setState
+  const t=(key)=>({defaultValue:d.current[key]??'',onChange:e=>{d.current[key]=e.target.value}});
+
   const F=({l,children,req})=>(<div><label style={{fontSize:11,fontWeight:600,color:MT,marginBottom:4,display:'block'}}>{l}{req&&<span style={{color:RD}}> *</span>}</label>{children}</div>);
 
   return(
     <div style={{background:CD,borderRadius:12,border:`1px solid ${BD}`,padding:20,animation:'fadeIn .2s ease-out'}}>
       <h3 style={{fontSize:16,fontWeight:700,marginBottom:18,display:'flex',alignItems:'center',gap:6}}>{ic.car} {car?'차량 수정':'새 차량 등록'}</h3>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
-        <F l="브랜드" req><select value={f.brand} onChange={e=>s('brand',e.target.value)}><option value="">선택</option>{BRANDS.filter(b=>b!=='전체').map(b=><option key={b}>{b}</option>)}</select></F>
-        <F l="모델명" req><CI value={f.model} onChange={e=>s('model',e.target.value)} placeholder="GV80"/></F>
-        <F l="연식"><select value={f.year} onChange={e=>s('year',e.target.value)}>{[2026,2025,2024,2023,2022,2021,2020,2019].map(y=><option key={y}>{y}</option>)}</select></F>
-        <F l="등급/트림"><CI value={f.trim} onChange={e=>s('trim',e.target.value)} placeholder="가솔린 2.5 터보"/></F>
-        <F l="차량번호"><CI value={f.plateNumber||''} onChange={e=>s('plateNumber',e.target.value)} placeholder="12가 3456"/></F>
-        <F l="계약 유형"><select value={f.contractType} onChange={e=>s('contractType',e.target.value)}><option>렌트</option><option>리스</option></select></F>
-        <F l="캐피탈/렌탈사"><CI value={f.capitalCompany||''} onChange={e=>s('capitalCompany',e.target.value)} placeholder="현대캐피탈"/></F>
-        <F l="월 납입금 (원)" req><CI type="number" value={f.monthlyPayment} onChange={e=>s('monthlyPayment',e.target.value)} placeholder="526747"/></F>
-        <F l="총 계약기간 (개월)"><CI type="number" value={f.totalContractMonths} onChange={e=>s('totalContractMonths',e.target.value)}/></F>
-        <F l="잔여 개월"><CI type="number" value={f.remainingMonths} onChange={e=>s('remainingMonths',e.target.value)} placeholder="36"/></F>
-        <F l="계약 만기일"><CI type="month" value={f.contractEndDate||''} onChange={e=>s('contractEndDate',e.target.value)}/></F>
-        <F l="보증금 (원)"><CI type="number" value={f.deposit} onChange={e=>s('deposit',e.target.value)}/></F>
-        <F l="인수금 (원)"><CI type="number" value={f.acquisitionCost} onChange={e=>s('acquisitionCost',e.target.value)}/></F>
-        <F l="승계 지원금 (원)"><CI type="number" value={f.supportAmount} onChange={e=>s('supportAmount',e.target.value)}/></F>
-        <F l="연료"><select value={f.fuelType} onChange={e=>s('fuelType',e.target.value)}>{['가솔린','디젤','하이브리드','전기','LPG'].map(x=><option key={x}>{x}</option>)}</select></F>
-        <F l="색상"><CI value={f.color||''} onChange={e=>s('color',e.target.value)} placeholder="마틴 그레이"/></F>
-        <F l="인승"><select value={f.seating} onChange={e=>s('seating',e.target.value)}>{['2인승','4인승','5인승','7인승','9인승','11인승'].map(x=><option key={x}>{x}</option>)}</select></F>
-        <F l="변속기"><select value={f.transmission} onChange={e=>s('transmission',e.target.value)}><option>자동</option><option>수동</option></select></F>
-        <F l="약정 주행거리 (km/년)"><CI type="number" value={f.annualMileage} onChange={e=>s('annualMileage',e.target.value)}/></F>
-        <F l="현재 주행거리 (km)"><CI type="number" value={f.currentMileage} onChange={e=>s('currentMileage',e.target.value)}/></F>
-        <F l="지역"><CI value={f.region||''} onChange={e=>s('region',e.target.value)} placeholder="서울 강남구"/></F>
-        <F l="조회수 (수동)"><CI type="number" value={f.views} onChange={e=>s('views',e.target.value)}/></F>
+        <F l="브랜드" req><select value={brand} onChange={e=>{setBrand(e.target.value);d.current.brand=e.target.value}}><option value="">선택</option>{BRANDS.filter(b=>b!=='전체').map(b=><option key={b}>{b}</option>)}</select></F>
+        <F l="모델명" req><input {...t('model')} placeholder="GV80"/></F>
+        <F l="연식"><select value={year} onChange={e=>{setYear(e.target.value);d.current.year=e.target.value}}>{[2026,2025,2024,2023,2022,2021,2020,2019].map(y=><option key={y}>{y}</option>)}</select></F>
+        <F l="등급/트림"><input {...t('trim')} placeholder="가솔린 2.5 터보"/></F>
+        <F l="차량번호"><input {...t('plateNumber')} placeholder="12가 3456"/></F>
+        <F l="계약 유형"><select value={cType} onChange={e=>{setCType(e.target.value);d.current.contractType=e.target.value}}><option>렌트</option><option>리스</option></select></F>
+        <F l="캐피탈/렌탈사"><input {...t('capitalCompany')} placeholder="현대캐피탈"/></F>
+        <F l="월 납입금 (원)" req><input type="number" {...t('monthlyPayment')} placeholder="526747"/></F>
+        <F l="총 계약기간 (개월)"><input type="number" {...t('totalContractMonths')}/></F>
+        <F l="잔여 개월"><input type="number" {...t('remainingMonths')} placeholder="36"/></F>
+        <F l="계약 만기일"><input type="month" {...t('contractEndDate')}/></F>
+        <F l="보증금 (원)"><input type="number" {...t('deposit')}/></F>
+        <F l="인수금 (원)"><input type="number" {...t('acquisitionCost')}/></F>
+        <F l="승계 지원금 (원)"><input type="number" {...t('supportAmount')}/></F>
+        <F l="연료"><select value={fuelT} onChange={e=>{setFuelT(e.target.value);d.current.fuelType=e.target.value}}>{['가솔린','디젤','하이브리드','전기','LPG'].map(x=><option key={x}>{x}</option>)}</select></F>
+        <F l="색상"><input {...t('color')} placeholder="마틴 그레이"/></F>
+        <F l="인승"><select value={seat} onChange={e=>{setSeat(e.target.value);d.current.seating=e.target.value}}>{['2인승','4인승','5인승','7인승','9인승','11인승'].map(x=><option key={x}>{x}</option>)}</select></F>
+        <F l="변속기"><select value={trans} onChange={e=>{setTrans(e.target.value);d.current.transmission=e.target.value}}><option>자동</option><option>수동</option></select></F>
+        <F l="약정 주행거리 (km/년)"><input type="number" {...t('annualMileage')}/></F>
+        <F l="현재 주행거리 (km)"><input type="number" {...t('currentMileage')}/></F>
+        <F l="지역"><input {...t('region')} placeholder="서울 강남구"/></F>
+        <F l="조회수 (수동)"><input type="number" {...t('views')}/></F>
       </div>
 
       <div style={{marginTop:14,padding:14,background:DB,borderRadius:8,border:`1px solid ${BD}`}}>
         <h4 style={{fontSize:12,fontWeight:700,marginBottom:10,color:G,display:'flex',alignItems:'center',gap:5}}>{ic.user} 담당자 정보</h4>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-          <F l="담당자명"><CI value={f.managerName||''} onChange={e=>s('managerName',e.target.value)} placeholder="홍길동"/></F>
-          <F l="담당자 연락처"><CI value={f.managerPhone||''} onChange={e=>s('managerPhone',e.target.value)} placeholder="010-1234-5678"/></F>
+          <F l="담당자명"><input {...t('managerName')} placeholder="홍길동"/></F>
+          <F l="담당자 연락처"><input {...t('managerPhone')} placeholder="010-1234-5678"/></F>
         </div>
       </div>
 
       <div style={{display:'flex',gap:16,marginTop:14,flexWrap:'wrap'}}>
         <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12}}>
-          <input type="checkbox" checked={f.isPremium} onChange={e=>s('isPremium',e.target.checked)} style={{width:16,height:16,accentColor:G}}/> ★ 프리미엄 차량
+          <input type="checkbox" checked={isPrem} onChange={e=>setIsPrem(e.target.checked)} style={{width:16,height:16,accentColor:G}}/> ★ 프리미엄 차량
         </label>
         <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:MT}}>
-          상태: <select value={f.status||'active'} onChange={e=>s('status',e.target.value)} style={{width:'auto',padding:'4px 28px 4px 8px'}}><option value="active">승계 중</option><option value="completed">승계완료</option></select>
+          상태: <select value={status} onChange={e=>setStatus(e.target.value)} style={{width:'auto',padding:'4px 28px 4px 8px'}}><option value="active">승계 중</option><option value="completed">승계완료</option></select>
         </label>
       </div>
 
-      <div style={{marginTop:14}}><ImgUploader images={f.images||[]} setImages={v=>s('images',typeof v==='function'?v(f.images||[]):v)}/></div>
+      <div style={{marginTop:14}}><ImgUploader images={images} setImages={setImages}/></div>
 
       <div style={{marginTop:14}}>
         <label style={{fontSize:11,fontWeight:600,color:MT,marginBottom:4,display:'block'}}>옵션</label>
         <div style={{display:'flex',gap:6}}>
-          <CI value={opt} onChange={e=>setOpt(e.target.value)} placeholder="옵션 입력" onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();if(opt.trim()){s('options',[...(f.options||[]),opt.trim()]);setOpt('')}}}} style={{flex:1}}/>
-          <button className="btn bo bs" onClick={()=>{if(opt.trim()){s('options',[...(f.options||[]),opt.trim()]);setOpt('')}}}>추가</button>
+          <input ref={optRef} defaultValue="" placeholder="옵션 입력" onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addOpt()}}} style={{flex:1}}/>
+          <button className="btn bo bs" onClick={addOpt}>추가</button>
         </div>
-        {f.options?.length>0&&<div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:6}}>
-          {f.options.map((o,i)=><span key={i} style={{background:'rgba(245,208,0,.08)',color:G,padding:'3px 9px',borderRadius:12,fontSize:10,display:'flex',alignItems:'center',gap:3,cursor:'pointer'}} onClick={()=>s('options',f.options.filter((_,j)=>j!==i))}>{o} ×</span>)}
+        {options.length>0&&<div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:6}}>
+          {options.map((o,i)=><span key={i} style={{background:'rgba(245,208,0,.08)',color:G,padding:'3px 9px',borderRadius:12,fontSize:10,display:'flex',alignItems:'center',gap:3,cursor:'pointer'}} onClick={()=>setOptions(p=>{const n=p.filter((_,j)=>j!==i);d.current.options=n;return n})}>{o} ×</span>)}
         </div>}
       </div>
 
       <div style={{marginTop:14}}>
         <label style={{fontSize:11,fontWeight:600,color:MT,marginBottom:4,display:'block'}}>상세 설명</label>
-        <CT value={f.description||''} onChange={e=>s('description',e.target.value)} rows={4} placeholder="차량 상태, 승계 사유 등"/>
+        <textarea defaultValue={d.current.description??''} onChange={e=>{d.current.description=e.target.value}} rows={4} placeholder="차량 상태, 승계 사유 등"/>
       </div>
 
       <div style={{display:'flex',gap:8,marginTop:18}}>
@@ -693,6 +706,8 @@ function Admin({cars,inquiries}){
 // ── Home ──
 function Home({cars,onSelect}){
   const [q,setQ]=useState('');
+  const qRef=useRef(null);
+  const debRef=useRef(null);
   const [brand,setBrand]=useState('전체');
   const [fuel,setFuel]=useState('전체');
   const [cType,setCType]=useState('전체');
@@ -731,7 +746,7 @@ function Home({cars,onSelect}){
 
         <div style={{maxWidth:540,margin:'20px auto 0',position:'relative'}}>
           <div style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',color:MT,zIndex:1}}>{ic.search}</div>
-          <CI value={q} onChange={e=>setQ(e.target.value)} placeholder="차량명, 브랜드, 지역, 색상, 차량번호 검색" style={{paddingLeft:40,height:46,fontSize:14,borderRadius:23,background:'rgba(26,26,26,.85)'}}/>
+          <input ref={qRef} defaultValue="" onChange={e=>{clearTimeout(debRef.current);debRef.current=setTimeout(()=>setQ(e.target.value),200)}} placeholder="차량명, 브랜드, 지역, 색상, 차량번호 검색" style={{paddingLeft:40,height:46,fontSize:14,borderRadius:23,background:'rgba(26,26,26,.85)',width:'100%'}}/>
         </div>
 
         <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:6,marginTop:14}}>
