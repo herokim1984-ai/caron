@@ -468,19 +468,39 @@ function CarForm({car,onSave,onCancel}){
     if(!f.brand||!f.model||!f.monthlyPayment){alert('브랜드, 모델명, 월 납입금은 필수입니다.');return}
     setSaving(true);
     try{
-      await onSave({
-        ...f,
-        id: car?.id,
-        monthlyPayment:Number(f.monthlyPayment)||0,
-        remainingMonths:Number(f.remainingMonths)||0,
-        totalContractMonths:Number(f.totalContractMonths)||0,
-        deposit:Number(f.deposit)||0,
-        acquisitionCost:Number(f.acquisitionCost)||0,
-        supportAmount:Number(f.supportAmount)||0,
-        annualMileage:Number(f.annualMileage)||0,
-        currentMileage:Number(f.currentMileage)||0,
-        year:Number(f.year)||2025,
-      });
+      const cleaned = {
+        brand: f.brand || '',
+        model: f.model || '',
+        year: Number(f.year) || 2025,
+        trim: f.trim || '',
+        plateNumber: f.plateNumber || '',
+        contractType: f.contractType || '렌트',
+        capitalCompany: f.capitalCompany || '',
+        monthlyPayment: Number(f.monthlyPayment) || 0,
+        totalContractMonths: Number(f.totalContractMonths) || 0,
+        remainingMonths: Number(f.remainingMonths) || 0,
+        contractEndDate: f.contractEndDate || '',
+        deposit: Number(f.deposit) || 0,
+        acquisitionCost: Number(f.acquisitionCost) || 0,
+        supportAmount: Number(f.supportAmount) || 0,
+        fuelType: f.fuelType || '가솔린',
+        color: f.color || '',
+        seating: f.seating || '5인승',
+        transmission: f.transmission || '자동',
+        annualMileage: Number(f.annualMileage) || 0,
+        currentMileage: Number(f.currentMileage) || 0,
+        region: f.region || '',
+        managerName: f.managerName || '',
+        managerPhone: f.managerPhone || '',
+        isPremium: !!f.isPremium,
+        status: f.status || 'active',
+        images: f.images || [],
+        options: f.options || [],
+        description: f.description || '',
+      };
+      // Only include id for existing cars (edit mode)
+      if (car?.id) cleaned.id = car.id;
+      await onSave(cleaned);
     }catch(err){alert('저장 중 오류: '+err.message)}
     setSaving(false);
   };
