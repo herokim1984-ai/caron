@@ -23,6 +23,15 @@ const G = '#F5D000', GD = '#D4B300', BK = '#0D0D0D', DB = '#111',
 // ── Helpers ──
 const fmt = n => n?.toLocaleString?.() ?? '0';
 const fmtW = n => { if(!n)return'0'; return n>=10000?(n/10000).toFixed(0)+'만':fmt(n); };
+// Money input: show commas while typing, store raw number in ref
+const moneyProps = (ref, key) => ({
+  defaultValue: ref.current[key] ? Number(ref.current[key]).toLocaleString() : '',
+  onChange: e => {
+    const raw = e.target.value.replace(/[^0-9]/g, '');
+    ref.current[key] = raw;
+    e.target.value = raw ? Number(raw).toLocaleString() : '';
+  }
+});
 
 // ── SVG Icons (minimal) ──
 const ic = {
@@ -52,6 +61,7 @@ const ic = {
   checkCircle: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
   inbox: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>,
   loading: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>,
+  copy: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>,
 };
 
 // ── Global CSS ──
@@ -289,7 +299,7 @@ function CarCard({car,onClick}){
 }
 
 // ── Detail Modal ──
-function Detail({car,onClose,onInquiry}){
+function Detail({car,onClose,onInquiry,isAdmin,onEdit,onDelete}){
   const [showForm,setShowForm]=useState(false);
   const inqRef=useRef({name:'',phone:'',message:''});
   const [sent,setSent]=useState(false);
@@ -300,7 +310,7 @@ function Detail({car,onClose,onInquiry}){
   const submit=()=>{
     const f=inqRef.current;
     if(!f.name||!f.phone){alert('이름과 연락처를 입력해주세요.');return}
-    onInquiry({...f,carId:car.id,carName:`${car.brand} ${car.model}`,managerPhone:car.managerPhone||'',status:'new'});
+    onInquiry({...f,carId:car.id,carName:`${car.brand} ${car.model}`,plateNumber:car.plateNumber||'',managerPhone:car.managerPhone||'',status:'new'});
     setSent(true);
     setTimeout(()=>{
       setSent(false);setShowForm(false);
@@ -323,10 +333,14 @@ function Detail({car,onClose,onInquiry}){
       <div style={{maxWidth:660,margin:'16px auto',background:DB,borderRadius:14,border:`1px solid ${done?'rgba(229,57,53,.25)':BD}`,overflow:'hidden',animation:'fadeIn .25s ease-out'}} onClick={e=>e.stopPropagation()}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:`1px solid ${BD}`}}>
           <button className="btn bg bs" onClick={onClose}>{ic.back} 뒤로</button>
-          <div style={{display:'flex',gap:4}}>
+          <div style={{display:'flex',gap:4,alignItems:'center'}}>
             <span className={`badge ${car.contractType==='렌트'?'b-rent':'b-lease'}`}>{car.contractType}</span>
             {car.isPremium&&<span className="badge b-prem">★</span>}
             {done&&<span className="badge b-done">승계완료</span>}
+            {isAdmin&&<>
+              <button className="btn bg bs" style={{marginLeft:4}} onClick={()=>{onClose();onEdit(car)}}>{ic.edit} 수정</button>
+              <button className="btn bg bs" style={{color:RD}} onClick={()=>{if(confirm('정말 삭제하시겠습니까?')){onClose();onDelete(car.id)}}}>{ic.trash}</button>
+            </>}
           </div>
         </div>
 
@@ -512,6 +526,8 @@ function CarForm({car,onSave,onCancel}){
 
   // Simple text field handler - just writes to ref, no setState
   const t=(key)=>({defaultValue:d.current[key]??'',onChange:e=>{d.current[key]=e.target.value}});
+  // Money field: displays commas, stores raw number
+  const m=(key)=>moneyProps(d, key);
 
   const F=({l,children,req})=>(<div><label style={{fontSize:11,fontWeight:600,color:MT,marginBottom:4,display:'block'}}>{l}{req&&<span style={{color:RD}}> *</span>}</label>{children}</div>);
 
@@ -526,13 +542,13 @@ function CarForm({car,onSave,onCancel}){
         <F l="차량번호"><input {...t('plateNumber')} placeholder="12가 3456"/></F>
         <F l="계약 유형"><select value={cType} onChange={e=>{setCType(e.target.value);d.current.contractType=e.target.value}}><option>렌트</option><option>리스</option></select></F>
         <F l="캐피탈/렌탈사"><input {...t('capitalCompany')} placeholder="현대캐피탈"/></F>
-        <F l="월 납입금 (원)" req><input type="number" {...t('monthlyPayment')} placeholder="526747"/></F>
+        <F l="월 납입금 (원)" req><input {...m('monthlyPayment')} placeholder="526,747"/></F>
         <F l="총 계약기간 (개월)"><input type="number" {...t('totalContractMonths')}/></F>
         <F l="잔여 개월"><input type="number" {...t('remainingMonths')} placeholder="36"/></F>
         <F l="계약 만기일"><input type="month" {...t('contractEndDate')}/></F>
-        <F l="보증금 (원)"><input type="number" {...t('deposit')}/></F>
-        <F l="인수금 (원)"><input type="number" {...t('acquisitionCost')}/></F>
-        <F l="승계 지원금 (원)"><input type="number" {...t('supportAmount')}/></F>
+        <F l="보증금 (원)"><input {...m('deposit')} placeholder="0"/></F>
+        <F l="인수금 (원)"><input {...m('acquisitionCost')} placeholder="0"/></F>
+        <F l="승계 지원금 (원)"><input {...m('supportAmount')} placeholder="0"/></F>
         <F l="연료"><select value={fuelT} onChange={e=>{setFuelT(e.target.value);d.current.fuelType=e.target.value}}>{['가솔린','디젤','하이브리드','전기','LPG'].map(x=><option key={x}>{x}</option>)}</select></F>
         <F l="색상"><input {...t('color')} placeholder="마틴 그레이"/></F>
         <F l="인승"><select value={seat} onChange={e=>{setSeat(e.target.value);d.current.seating=e.target.value}}>{['2인승','4인승','5인승','7인승','9인승','11인승'].map(x=><option key={x}>{x}</option>)}</select></F>
@@ -586,10 +602,18 @@ function CarForm({car,onSave,onCancel}){
 }
 
 // ── Admin ──
-function Admin({cars,inquiries}){
+function Admin({cars,inquiries,editCar:extEdit,clearExtEdit}){
   const [tab,setTab]=useState('cars');
   const [edit,setEdit]=useState(null);
   const [showForm,setShowForm]=useState(false);
+
+  // Handle external edit request (from Detail modal)
+  useEffect(()=>{
+    if(extEdit){
+      setEdit(extEdit);setShowForm(true);setTab('cars');
+      clearExtEdit();
+    }
+  },[extEdit]);
 
   const saveCar=async(data)=>{
     try{
@@ -606,6 +630,14 @@ function Admin({cars,inquiries}){
   const delCar=async(id)=>{
     if(!confirm('정말 삭제하시겠습니까?'))return;
     try{await deleteCar(id)}catch(err){alert('삭제 실패: '+err.message)}
+  };
+
+  const copyCar=async(car)=>{
+    const{id,createdAt,updatedAt,...rest}=car;
+    try{
+      await addCar({...rest,plateNumber:'',status:'active'});
+      alert('차량이 복사되었습니다. 차량번호를 수정해주세요.');
+    }catch(err){alert('복사 실패: '+err.message)}
   };
 
   const toggleDone=async(car)=>{
@@ -638,7 +670,7 @@ function Admin({cars,inquiries}){
       </div>
 
       <div style={{display:'flex',borderBottom:`1px solid ${BD}`,marginBottom:16,overflowX:'auto'}}>
-        <button className={`tab ${tab==='cars'?'active':''}`} onClick={()=>{setTab('cars');setShowForm(false)}}>{ic.car} 차량</button>
+        <button className={`tab ${tab==='cars'?'active':''}`} onClick={()=>{setTab('cars');setShowForm(false);setEdit(null)}}>{ic.car} 차량</button>
         <button className={`tab ${tab==='inquiries'?'active':''}`} onClick={()=>setTab('inquiries')}>
           {ic.inbox} 문의{ni>0&&<span style={{background:RD,color:'#fff',fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:8,marginLeft:4}}>{ni}</span>}
         </button>
@@ -668,9 +700,10 @@ function Admin({cars,inquiries}){
                   <td style={{padding:'8px 10px',color:MT,fontSize:10,whiteSpace:'nowrap'}}>{car.managerName||'-'}<br/>{car.managerPhone||''}</td>
                   <td style={{padding:'8px 10px',whiteSpace:'nowrap'}}>
                     <div style={{display:'flex',gap:2}}>
-                      <button className="btn bg" style={{padding:'3px 5px',minWidth:0}} title={car.status==='active'?'승계완료 처리':'되돌리기'} onClick={()=>toggleDone(car)}>{ic.checkCircle}</button>
-                      <button className="btn bg" style={{padding:'3px 5px',minWidth:0}} onClick={()=>{setEdit(car);setShowForm(true)}}>{ic.edit}</button>
-                      <button className="btn bg" style={{padding:'3px 5px',minWidth:0,color:RD}} onClick={()=>delCar(car.id)}>{ic.trash}</button>
+                      <button className="btn bg" style={{padding:'3px 5px',minWidth:0}} title={car.status==='active'?'승계완료':'되돌리기'} onClick={()=>toggleDone(car)}>{ic.checkCircle}</button>
+                      <button className="btn bg" style={{padding:'3px 5px',minWidth:0}} title="수정" onClick={()=>{setEdit(car);setShowForm(true)}}>{ic.edit}</button>
+                      <button className="btn bg" style={{padding:'3px 5px',minWidth:0}} title="복사" onClick={()=>copyCar(car)}>{ic.copy}</button>
+                      <button className="btn bg" style={{padding:'3px 5px',minWidth:0,color:RD}} title="삭제" onClick={()=>delCar(car.id)}>{ic.trash}</button>
                     </div>
                   </td>
                 </tr>
@@ -684,9 +717,9 @@ function Admin({cars,inquiries}){
         <h3 style={{fontSize:15,fontWeight:700,marginBottom:12}}>문의 목록 ({inquiries.length})</h3>
         <div style={{background:CD,borderRadius:10,border:`1px solid ${BD}`,overflow:'hidden'}}>
           <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:700}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:750}}>
               <thead><tr style={{borderBottom:`1px solid ${BD}`,background:'rgba(245,208,0,.03)'}}>
-                {['상태','이름','연락처','차량','담당자','내용','날짜','처리'].map(h=><th key={h} style={{padding:'9px 10px',textAlign:'left',fontWeight:600,color:MT,whiteSpace:'nowrap',fontSize:10}}>{h}</th>)}
+                {['상태','이름','연락처','차량','차량번호','담당자','내용','날짜','처리'].map(h=><th key={h} style={{padding:'9px 10px',textAlign:'left',fontWeight:600,color:MT,whiteSpace:'nowrap',fontSize:10}}>{h}</th>)}
               </tr></thead>
               <tbody>{inquiries.map(q=>(
                 <tr key={q.id} style={{borderBottom:`1px solid ${BD}`,background:q.status==='new'?'rgba(245,208,0,.03)':'transparent'}}>
@@ -698,6 +731,7 @@ function Admin({cars,inquiries}){
                   <td style={{padding:'8px 10px',fontWeight:600}}>{q.name}</td>
                   <td style={{padding:'8px 10px'}}><a href={`tel:${q.phone}`} style={{color:G,textDecoration:'none'}}>{q.phone}</a></td>
                   <td style={{padding:'8px 10px',color:MT,whiteSpace:'nowrap'}}>{q.carName}</td>
+                  <td style={{padding:'8px 10px',color:G,fontWeight:600,fontSize:10}}>{q.plateNumber||'-'}</td>
                   <td style={{padding:'8px 10px',color:MT,fontSize:10}}>{q.managerPhone||'-'}</td>
                   <td style={{padding:'8px 10px',color:MT,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{q.message||'-'}</td>
                   <td style={{padding:'8px 10px',color:MT,whiteSpace:'nowrap',fontSize:10}}>{q.createdAt?.toDate?.().toLocaleDateString?.('ko-KR')||q.createdAt||'-'}</td>
@@ -710,7 +744,7 @@ function Admin({cars,inquiries}){
                     </div>
                   </td>
                 </tr>
-              ))}{inquiries.length===0&&<tr><td colSpan={8} style={{padding:30,textAlign:'center',color:MT}}>문의가 없습니다</td></tr>}</tbody>
+              ))}{inquiries.length===0&&<tr><td colSpan={9} style={{padding:30,textAlign:'center',color:MT}}>문의가 없습니다</td></tr>}</tbody>
             </table>
           </div>
         </div>
@@ -720,7 +754,7 @@ function Admin({cars,inquiries}){
 }
 
 // ── Home ──
-function Home({cars,onSelect}){
+function Home({cars,onSelect,isAdmin}){
   const [q,setQ]=useState('');
   const qRef=useRef(null);
   const debRef=useRef(null);
@@ -838,12 +872,11 @@ export default function App(){
   });
   const [selected,setSelected]=useState(null);
   const [loading,setLoading]=useState(true);
+  const [editCar,setEditCar]=useState(null); // for editing from Detail
 
   useEffect(()=>{
     let timeout;
-    // Failsafe: end loading after 5 seconds no matter what
     timeout = setTimeout(()=>setLoading(false), 5000);
-
     const unsubCars=subscribeCars(
       (data)=>{setCars(data);setLoading(false);clearTimeout(timeout)},
       (err)=>{console.error(err);setLoading(false);clearTimeout(timeout)}
@@ -859,7 +892,16 @@ export default function App(){
     try{await fbAddInquiry(data)}catch(err){console.error('Inquiry error:',err)}
   };
 
-  // Sync selected car with live data
+  const handleEditFromDetail=(car)=>{
+    setEditCar(car);
+    setPage('admin');
+  };
+
+  const handleDeleteFromDetail=async(id)=>{
+    if(!confirm('정말 삭제하시겠습니까?'))return;
+    try{await deleteCar(id)}catch(err){alert('삭제 실패: '+err.message)}
+  };
+
   useEffect(()=>{
     if(selected){
       const updated=cars.find(c=>c.id===selected.id);
@@ -882,8 +924,11 @@ export default function App(){
     <style>{CSS}</style>
     <div style={{minHeight:'100vh',background:BK}}>
       <Header page={page} setPage={setPage} isAdmin={isAdmin} setIsAdmin={setIsAdmin}/>
-      {isAdmin&&page==='admin'?<Admin cars={cars} inquiries={inquiries}/>:<Home cars={cars} onSelect={setSelected}/>}
-      {selected&&<Detail car={selected} onClose={()=>setSelected(null)} onInquiry={handleInquiry}/>}
+      {isAdmin&&page==='admin'
+        ?<Admin cars={cars} inquiries={inquiries} editCar={editCar} clearExtEdit={()=>setEditCar(null)}/>
+        :<Home cars={cars} onSelect={setSelected} isAdmin={isAdmin}/>
+      }
+      {selected&&<Detail car={selected} onClose={()=>setSelected(null)} onInquiry={handleInquiry} isAdmin={isAdmin} onEdit={handleEditFromDetail} onDelete={handleDeleteFromDetail}/>}
     </div>
   </>);
 }
