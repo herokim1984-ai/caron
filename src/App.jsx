@@ -185,6 +185,9 @@ function ImgUploader({images,setImages}){
   };
 
   const rm=(i)=>setImages(prev=>prev.filter((_,idx)=>idx!==i));
+  const setMain=(i)=>setImages(prev=>{const c=[...prev];const [item]=c.splice(i,1);c.unshift(item);return c});
+  const moveLeft=(i)=>{if(i<=0)return;setImages(prev=>{const c=[...prev];[c[i-1],c[i]]=[c[i],c[i-1]];return c})};
+  const moveRight=(i)=>{if(i>=images.length-1)return;setImages(prev=>{const c=[...prev];[c[i],c[i+1]]=[c[i+1],c[i]];return c})};
 
   return(
     <div>
@@ -195,12 +198,21 @@ function ImgUploader({images,setImages}){
         </button>}
       </div>
       <input ref={ref} type="file" accept="image/*" multiple onChange={handle} style={{display:'none'}}/>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(80px,1fr))',gap:6}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:6}}>
         {images.map((src,i)=>(
-          <div key={i} style={{position:'relative',aspectRatio:'1',borderRadius:6,overflow:'hidden',border:`1px solid ${BD}`}}>
+          <div key={i} style={{position:'relative',aspectRatio:'1',borderRadius:6,overflow:'hidden',border:i===0?`2px solid ${G}`:`1px solid ${BD}`,background:'#111'}}>
             <img src={src} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-            <button onClick={()=>rm(i)} style={{position:'absolute',top:2,right:2,background:'rgba(0,0,0,.7)',border:'none',color:'#fff',width:18,height:18,borderRadius:'50%',cursor:'pointer',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
-            {i===0&&<div style={{position:'absolute',bottom:0,left:0,right:0,background:'rgba(245,208,0,.85)',color:BK,fontSize:8,fontWeight:700,textAlign:'center',padding:'1px 0'}}>대표</div>}
+            {/* Top buttons: delete */}
+            <button onClick={()=>rm(i)} style={{position:'absolute',top:2,right:2,background:'rgba(0,0,0,.7)',border:'none',color:'#fff',width:18,height:18,borderRadius:'50%',cursor:'pointer',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',zIndex:2}}>×</button>
+            {/* Bottom bar: controls */}
+            <div style={{position:'absolute',bottom:0,left:0,right:0,background:'rgba(0,0,0,.75)',display:'flex',alignItems:'center',justifyContent:'center',gap:2,padding:'2px 0'}}>
+              {i===0
+                ?<span style={{fontSize:7,fontWeight:700,color:G,letterSpacing:.5}}>★ 대표</span>
+                :<button onClick={()=>setMain(i)} style={{background:'none',border:'none',color:'#ccc',fontSize:7,cursor:'pointer',padding:'0 3px'}}>대표지정</button>
+              }
+              {i>0&&<button onClick={()=>moveLeft(i)} style={{background:'none',border:'none',color:'#ccc',fontSize:10,cursor:'pointer',padding:'0 2px'}}>◀</button>}
+              {i<images.length-1&&<button onClick={()=>moveRight(i)} style={{background:'none',border:'none',color:'#ccc',fontSize:10,cursor:'pointer',padding:'0 2px'}}>▶</button>}
+            </div>
           </div>
         ))}
         {images.length<MAX&&!compressing&&(
@@ -813,7 +825,7 @@ function Home({cars,onSelect,isAdmin}){
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:10}}>
             <div><label style={{fontSize:10,color:MT,marginBottom:2,display:'block'}}>브랜드</label><select value={brand} onChange={e=>setBrand(e.target.value)}>{BRANDS.map(b=><option key={b}>{b}</option>)}</select></div>
             <div><label style={{fontSize:10,color:MT,marginBottom:2,display:'block'}}>연료</label><select value={fuel} onChange={e=>setFuel(e.target.value)}>{FUELS.map(f=><option key={f}>{f}</option>)}</select></div>
-            <div><label style={{fontSize:10,color:MT,marginBottom:2,display:'block'}}>정렬</label><select value={sort} onChange={e=>setSort(e.target.value)}><option value="latest">최신순</option><option value="price-asc">가격↑</option><option value="price-desc">가격↓</option></select></div>
+            <div><label style={{fontSize:10,color:MT,marginBottom:2,display:'block'}}>정렬</label><select value={sort} onChange={e=>setSort(e.target.value)}><option value="latest">최신순</option><option value="price-asc">월납입료 낮은순</option><option value="price-desc">월납입료 높은순</option></select></div>
           </div>
         </div>}
       </div>
@@ -839,7 +851,7 @@ function Home({cars,onSelect,isAdmin}){
             <span style={{fontSize:11,color:MT}}>{gen.length}대</span>
           </div>
           <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:'auto',padding:'4px 30px 4px 10px',fontSize:11,borderRadius:6}}>
-            <option value="latest">최신순</option><option value="price-asc">가격↑</option><option value="price-desc">가격↓</option>
+            <option value="latest">최신순</option><option value="price-asc">월납입료 낮은순</option><option value="price-desc">월납입료 높은순</option>
           </select>
         </div>
         {gen.length===0&&prem.length===0?
